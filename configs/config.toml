@@ -1,0 +1,28 @@
+# Application configuration file
+
+[database]
+# Default SQLite database path
+url = "sqlite:///./git_ignore_folder/rdagent.db"
+path = "./git_ignore_folder/rdagent.db"
+
+[llm]
+# The provider to use: openai | anthropic | azure_openai | huggingface
+provider = "openai"
+chat_model = "gpt-4o-mini"
+embedding_model = "text-embedding-3-small"
+
+[api]
+# Secrets should generally be provided via environment variables for safety.
+# These entries allow local development without exporting env vars, but avoid committing real secrets.
+# openai_api_key = "sk-..."
+# anthropic_api_key = ""
+# azure_openai_api_key = ""
+# huggingface_api_token = ""
+
+[schedule]
+# Enable scheduled operations
+enabled = false
+# Cron expression for periodic jobs (optional)
+cron = "0 * * * *"
+# Or use a simple interval in seconds
+interval_seconds = 3600
