@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from pydantic import BaseModel, Field, SecretStr, model_validator
 from pydantic_settings import (
@@ -51,24 +51,19 @@ def _parse_toml_minimal(text: str) -> dict[str, Any]:  # pragma: no cover - simp
 
 
 def _load_toml_file(path: Path) -> dict[str, Any]:
-    """Load TOML data from a file using tomllib/tomli if available, otherwise a minimal parser.
+    """Load TOML data from a file using stdlib tomllib if available, otherwise a minimal parser.
 
-    This keeps imports local to avoid isort import-order issues.
+    Uses dynamic import to avoid mypy issues on Python < 3.11.
     """
-    try:  # Python 3.11+
-        import tomllib as _tomllib  # type: ignore[attr-defined]
+    try:
+        import importlib
 
+        tomllib = importlib.import_module("tomllib")
         with path.open("rb") as f:
-            return _tomllib.load(f)  # type: ignore[operator]
+            return tomllib.load(f)  # type: ignore[attr-defined]
     except Exception:
-        try:
-            import tomli as _tomli  # type: ignore[import-not-found]
-
-            with path.open("rb") as f:
-                return _tomli.load(f)
-        except Exception:
-            with path.open("r", encoding="utf-8") as f2:
-                return _parse_toml_minimal(f2.read())
+        with path.open("r", encoding="utf-8") as f2:
+            return _parse_toml_minimal(f2.read())
 
 
 class TomlSettingsSource(PydanticBaseSettingsSource):
@@ -81,23 +76,24 @@ class TomlSettingsSource(PydanticBaseSettingsSource):
     def __init__(self, settings_cls: type[BaseSettings], section: Optional[str] = None):
         super().__init__(settings_cls)
         self.section = section
+        self._data: dict[str, Any] = {}
+        file_path = self._resolve_path()
+        if file_path and file_path.exists():
+            try:
+                loaded = _load_toml_file(file_path)
+                if isinstance(loaded, dict):
+                    self._data = loaded.get(section, {}) if section else loaded
+            except Exception:
+                self._data = {}
 
     def __call__(self) -> dict[str, Any]:
-        file_path = self._resolve_path()
-        if file_path is None or not file_path.exists():
-            return {}
-        try:
-            data = _load_toml_file(file_path)
-        except Exception:
-            return {}
+        # Provide all values at once for compatibility
+        return self._data
 
-        if not isinstance(data, dict):
-            return {}
-
-        if self.section:
-            section_data = data.get(self.section, {})
-            return section_data if isinstance(section_data, dict) else {}
-        return data
+    def get_field_value(self, field_name: str, field):  # type: ignore[override]
+        if field_name in self._data:
+            return self._data[field_name], "toml_file", False
+        return None, "toml_file", False
 
     @staticmethod
     def _resolve_path() -> Optional[Path]:
@@ -119,7 +115,7 @@ class ConfigFileBaseSettings(ExtendedBaseSettings):
     """
 
     # Subclasses can set this to the TOML section they want to read
-    config_section: Optional[str] = None
+    config_section: ClassVar[Optional[str]] = None
 
     # Use common nested delimiter; keep protected_namespaces empty so attributes are not rejected
     model_config = SettingsConfigDict(env_nested_delimiter="__", protected_namespaces=())
@@ -177,7 +173,7 @@ class SecretsSettings(ConfigFileBaseSettings):
     Values can also be provided in [api] of configs/config.toml.
     """
 
-    config_section: Optional[str] = "api"
+    config_section: ClassVar[Optional[str]] = "api"
 
     openai_api_key: Optional[SecretStr] = None
     anthropic_api_key: Optional[SecretStr] = None
@@ -188,7 +184,7 @@ class SecretsSettings(ConfigFileBaseSettings):
 class DatabaseSettings(ConfigFileBaseSettings):
     """Database-related configuration."""
 
-    config_section: Optional[str] = "database"
+    config_section: ClassVar[Optional[str]] = "database"
     model_config = SettingsConfigDict(env_prefix="DB_", env_nested_delimiter="__", protected_namespaces=())
 
     url: str = "sqlite:///" + str(Path.cwd() / "git_ignore_folder" / "rdagent.db")
@@ -198,7 +194,7 @@ class DatabaseSettings(ConfigFileBaseSettings):
 class ScheduleSettings(ConfigFileBaseSettings):
     """Scheduling options for periodic jobs."""
 
-    config_section: Optional[str] = "schedule"
+    config_section: ClassVar[Optional[str]] = "schedule"
     model_config = SettingsConfigDict(env_prefix="SCHED_", env_nested_delimiter="__", protected_namespaces=())
 
     enabled: bool = False
@@ -209,7 +205,7 @@ class ScheduleSettings(ConfigFileBaseSettings):
 class LLMProviderSettings(ConfigFileBaseSettings):
     """LLM provider and model configuration, separate from actual secret keys."""
 
-    config_section: Optional[str] = "llm"
+    config_section: ClassVar[Optional[str]] = "llm"
     model_config = SettingsConfigDict(env_prefix="LLM_", env_nested_delimiter="__", protected_namespaces=())
 
     provider: str = Field(default="openai", description="LLM provider: openai|anthropic|azure_openai|huggingface")

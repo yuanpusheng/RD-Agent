@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.offline
+
 from rdagent.config.settings import get_app_config
 
 
