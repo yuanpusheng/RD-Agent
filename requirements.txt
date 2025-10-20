@@ -71,3 +71,16 @@ types-pytz
 # Agent
 pydantic-ai-slim[mcp,openai]
 nest-asyncio
+
+# RD-Agent China extras
+akshare
+duckdb
+duckdb-engine
+SQLAlchemy
+clickhouse-connect
+backtrader
+pandas-ta
+apscheduler
+httpx
+tenacity
+Jinja2

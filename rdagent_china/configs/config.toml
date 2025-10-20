@@ -1,0 +1,11 @@
+[db]
+# If clickhouse is configured, use that; otherwise default to duckdb
+# Example ClickHouse URL: clickhouse+http://user:pass@localhost:8123/default
+url = ""
+
+[duckdb]
+path = "rdagent_china/data/market.duckdb"
+
+[llm]
+provider = "openai"
+model = "gpt-4o-mini"
