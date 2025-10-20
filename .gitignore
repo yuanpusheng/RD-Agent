@@ -149,6 +149,8 @@ dmypy.json
 
 # reports
 reports/
+rdagent_china/reports/
+rdagent_china/artifacts/
 
 # git_ignore_folder
 git_ignore_folder/
@@ -159,6 +161,8 @@ git_ignore_folder/
 
 # DB files
 *.db
+*.duckdb
+rdagent_china/data/*.duckdb
 
 # Docker
 factor_template/mlruns/

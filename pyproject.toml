@@ -33,6 +33,7 @@ requires-python = ">=3.10"
 
 [project.scripts]
 rdagent = "rdagent.app.cli:app"
+rdc = "rdagent_china.cli:app"
 
 [project.urls]
 homepage = "https://github.com/microsoft/RD-Agent/"
@@ -102,7 +103,7 @@ select = ["ALL"]
 "test/*" = ["S101"]
 
 [tool.setuptools]
-packages = ["rdagent"]
+packages = ["rdagent", "rdagent_china"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
