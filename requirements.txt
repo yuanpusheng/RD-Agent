@@ -83,4 +83,4 @@ pandas-ta
 apscheduler
 httpx
 tenacity
-Jinja2
+jinja2
