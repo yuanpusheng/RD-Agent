@@ -74,6 +74,9 @@ nest-asyncio
 
 # RD-Agent China extras
 akshare
+# optional but supported fallbacks
+tushare
+pyyaml
 duckdb
 duckdb-engine
 SQLAlchemy
