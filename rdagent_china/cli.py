@@ -2,12 +2,14 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
+import pandas as pd
 import typer
 from loguru import logger
 
 from rdagent_china.config import settings
 from rdagent_china.data.ingest import ingest_prices
 from rdagent_china.data.universe import get_csi300_symbols, get_all_a_stock_symbols
+from rdagent_china.data.akshare_client import AkshareClient
 from rdagent_china.db import get_db
 
 app = typer.Typer(help="RD-Agent China CLI (rdc): ingest/backtest/daily-run/report/dashboard")
@@ -33,6 +35,34 @@ def ingest(
     logger.info(f"Ingesting {len(symbols)} symbols into {settings.db_url}")
     ingest_prices(symbols=symbols, start=start, end=end, db=db)
     logger.info("Ingest finished")
+
+
+@app.command()
+def ingest_price_daily(
+    start: Optional[str] = typer.Option(None, help="Start date YYYY-MM-DD"),
+    end: Optional[str] = typer.Option(None, help="End date YYYY-MM-DD"),
+):
+    """Fetch CSI300 daily prices via Akshare and persist to DuckDB price_daily with upsert semantics."""
+    db = get_db()
+    db.init()
+
+    symbols = get_csi300_symbols()
+    logger.info(f"Ingesting daily prices for {len(symbols)} CSI300 symbols into {settings.db_url}")
+    client = AkshareClient()
+    frames = []
+    for sym in symbols:
+        try:
+            df = client.price_daily(sym, start=start, end=end)
+        except Exception as e:  # pragma: no cover - defensive fallback
+            logger.warning(f"price_daily fetch failed for {sym}: {e}")
+            df = pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])  \
+                .assign(symbol=sym)
+        frames.append(df)
+    full = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    if not full.empty:
+        full["date"] = pd.to_datetime(full["date"])  # ensure datetime
+        db.write_price_daily(full)
+    logger.info("Ingest price_daily finished")
 
 
 @app.command()
