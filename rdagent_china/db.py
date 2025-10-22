@@ -96,6 +96,17 @@ CREATE TABLE IF NOT EXISTS computed_signals (
 );
 """
 
+MONITOR_ALERT_STATE_SQL = """
+CREATE TABLE IF NOT EXISTS monitor_alert_state (
+    universe TEXT,
+    symbol TEXT,
+    rule TEXT,
+    last_triggered TIMESTAMP,
+    last_value TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 
 @dataclass
 class BacktestResult:
@@ -132,6 +143,7 @@ class Database:
         self.conn.execute(ADJ_FACTORS_SQL)
         self.conn.execute(SYNC_META_SQL)
         self.conn.execute(COMPUTED_SIGNALS_SQL)
+        self.conn.execute(MONITOR_ALERT_STATE_SQL)
 
     def write_prices(self, df: pd.DataFrame):
         if df.empty:
@@ -294,6 +306,90 @@ class Database:
             """
         )
         self.conn.unregister("computed_signals_df")
+
+    def write_monitor_state(self, df: pd.DataFrame):
+        if df.empty:
+            return
+        cols = ["universe", "symbol", "rule", "last_triggered", "last_value"]
+        data = df[cols].copy()
+        data["last_triggered"] = pd.to_datetime(data["last_triggered"])
+
+        def _serialize_state(value: Any):
+            if value is None or (isinstance(value, float) and pd.isna(value)):
+                return None
+            if isinstance(value, str):
+                return value
+            return json.dumps(value, default=str)
+
+        data["last_value"] = data["last_value"].apply(_serialize_state)
+
+        key_frame = data[["universe", "symbol", "rule"]].drop_duplicates()
+        for _, row in key_frame.iterrows():
+            universe = row["universe"]
+            symbol = row["symbol"]
+            rule = row["rule"]
+            if pd.isna(universe):
+                self.conn.execute(
+                    "DELETE FROM monitor_alert_state WHERE universe IS NULL AND symbol = ? AND rule = ?",
+                    [symbol, rule],
+                )
+            else:
+                self.conn.execute(
+                    "DELETE FROM monitor_alert_state WHERE universe = ? AND symbol = ? AND rule = ?",
+                    [universe, symbol, rule],
+                )
+
+        self.conn.register("monitor_alert_state_df", data)
+        self.conn.execute(
+            """
+            INSERT INTO monitor_alert_state (universe, symbol, rule, last_triggered, last_value)
+            SELECT universe, symbol, rule, last_triggered, last_value FROM monitor_alert_state_df
+            """
+        )
+        self.conn.unregister("monitor_alert_state_df")
+
+    def read_monitor_state(
+        self,
+        universe: Optional[str] = None,
+        symbols: Optional[Sequence[str]] = None,
+        rules: Optional[Sequence[str]] = None,
+    ) -> pd.DataFrame:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if universe is not None:
+            if universe == "":
+                clauses.append("universe IS NULL")
+            else:
+                clauses.append("universe = ?")
+                params.append(universe)
+        if symbols:
+            placeholders = ",".join(["?"] * len(list(symbols)))
+            clauses.append(f"symbol IN ({placeholders})")
+            params.extend(list(symbols))
+        if rules:
+            placeholders = ",".join(["?"] * len(list(rules)))
+            clauses.append(f"rule IN ({placeholders})")
+            params.extend(list(rules))
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        query = f"SELECT universe, symbol, rule, last_triggered, last_value, updated_at FROM monitor_alert_state {where} ORDER BY symbol, rule"
+        result = self.conn.execute(query, params).fetch_df()
+        if result.empty:
+            return result
+        result["last_triggered"] = pd.to_datetime(result["last_triggered"])
+        result["updated_at"] = pd.to_datetime(result["updated_at"])
+
+        def _deserialize_state(value: Any):
+            if value is None or value == "":
+                return None
+            if isinstance(value, str):
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError:
+                    return value
+            return value
+
+        result["last_value"] = result["last_value"].apply(_deserialize_state)
+        return result
 
     def upsert_sync_meta(self, df: pd.DataFrame):
         if df.empty:

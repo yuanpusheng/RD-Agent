@@ -1,0 +1,20 @@
+# Default monitoring rules configuration for the China monitor loop.
+# The rules focus on detecting abnormal volume spikes across the universe.
+signals:
+  volume_watch:
+    indicator: volume_spike
+    params:
+      window: 10
+      threshold: 3.0
+rules:
+  - name: volume_spike_alert
+    any:
+      - signal: volume_watch
+        field: spike
+        operator: is_true
+    emit:
+      label: VOLUME_SPIKE_ALERT
+      severity: medium
+    value:
+      signal: volume_watch
+      field: ratio
