@@ -1,0 +1,13 @@
+[monitor]
+# Symbols are A-share instrument identifiers. Accepts comma separated env override via ASHARE_MONITOR_SYMBOLS.
+symbols = ["000300.SH", "600519.SS", "000001.SZ"]
+lookback_days = 30
+refresh_minutes = 15
+summary_window = 5
+mode = "live"
+
+data_provider = "akshare"
+
+[backtest]
+start = "2024-01-01"
+end = "2024-03-31"
