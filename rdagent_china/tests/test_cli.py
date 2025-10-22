@@ -9,3 +9,4 @@ def test_cli_help():
     assert result.exit_code == 0
     assert "ingest" in result.stdout
     assert "backtest" in result.stdout
+    assert "monitor" in result.stdout

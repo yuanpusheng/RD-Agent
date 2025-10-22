@@ -1,3 +1,4 @@
+import asyncio
 import subprocess
 from collections import defaultdict
 from pathlib import Path
@@ -13,6 +14,7 @@ from rdagent_china.data.universe import get_csi300_symbols, get_all_a_stock_symb
 from rdagent_china.data.akshare_client import AkshareClient
 from rdagent_china.data.provider import UnifiedDataProvider
 from rdagent_china.db import get_db
+from rdagent_china.monitor import MonitorLoop, MonitorLoopRunner, MonitorRunContext
 
 app = typer.Typer(help="RD-Agent China CLI (rdc): ingest/backtest/daily-run/report/dashboard")
 
@@ -150,6 +152,59 @@ def report(report_path: Path = typer.Option(Path("rdagent_china/reports/report.h
 def dashboard(port: int = 19555):
     app_path = Path(__file__).parent / "dashboard" / "app.py"
     subprocess.run(["streamlit", "run", str(app_path), f"--server.port={port}"])
+
+
+@app.command()
+def monitor(
+    intraday: bool = typer.Option(
+        False, "--intraday", help="Enable intraday polling alongside the daily run"
+    ),
+    universe: Optional[str] = typer.Option(
+        None, "--universe", help="Universe identifier or comma-separated symbol list"
+    ),
+    watchlist: Optional[str] = typer.Option(
+        None, "--watchlist", help="Watchlist file path or comma-separated symbols"
+    ),
+    run_once: bool = typer.Option(
+        False, "--run-once", help="Execute a single monitoring cycle and exit"
+    ),
+    start: Optional[str] = typer.Option(None, help="Override data start date YYYY-MM-DD"),
+    end: Optional[str] = typer.Option(None, help="Override data end date YYYY-MM-DD"),
+):
+    """Launch the monitoring loop, optionally with scheduling."""
+
+    monitor_loop = MonitorLoop()
+    context = MonitorRunContext(
+        universe=universe,
+        watchlist=watchlist,
+        intraday=intraday,
+        start=start,
+        end=end,
+    )
+
+    if run_once:
+        persisted = monitor_loop.run_cycle(context=context)
+        if not persisted.empty:
+            logger.info("Persisted {} alerts during one-off run", len(persisted))
+        return
+
+    try:
+        runner = MonitorLoopRunner(monitor_loop)
+    except RuntimeError as exc:  # pragma: no cover - APScheduler optional installation
+        logger.error(str(exc))
+        raise typer.Exit(code=1) from exc
+
+    logger.info("Starting monitoring scheduler; press Ctrl+C to exit")
+    try:
+        asyncio.run(
+            runner.start(
+                intraday=intraday,
+                universe=universe,
+                watchlist=watchlist,
+            )
+        )
+    except KeyboardInterrupt:  # pragma: no cover - interactive runtime guard
+        logger.info("Monitoring scheduler interrupted")
 
 
 if __name__ == "__main__":
