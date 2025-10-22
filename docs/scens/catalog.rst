@@ -26,6 +26,9 @@ The supported scenarios are listed below:
         :ref:`🦾Auto reports reading & implementation <data_copilot_fin>`  
         
         :ref:`🤖Iteratively Proposing Ideas & Evolving <data_agent_fin>`
+    * - 📊 China A-share
+      - :ref:`🤖 Monitoring & Alerting <a_share_monitor>`
+      - -
     * - 🏭 General
       - :ref:`🦾Auto paper reading & implementation <model_copilot_general>`  
         
@@ -43,4 +46,5 @@ The supported scenarios are listed below:
     model_agent_fin
     model_copilot_general
     data_science
+    a_share_monitor
     finetune

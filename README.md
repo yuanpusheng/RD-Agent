@@ -336,6 +336,15 @@ The **[🖥️ Live Demo](https://rdagent.azurewebsites.net/)** is implemented b
   rdagent data_science --competition tabular-playground-series-dec-2021
   ```
 
+- Run the **A-share market monitoring loop**:
+  ```bash
+  rdagent a-monitor run
+  ```
+  To replay historical data windows, use:
+  ```bash
+  rdagent a-monitor backtest --start 2024-01-01 --end 2024-03-31
+  ```
+
 ### 🖥️ Monitor the Application Results
 - You can run the following command for our demo program to see the run logs.
 
