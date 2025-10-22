@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 from typing import Iterable, Optional, Any, Sequence
 
@@ -77,6 +78,24 @@ CREATE TABLE IF NOT EXISTS sync_meta (
 );
 """
 
+COMPUTED_SIGNALS_SQL = """
+CREATE TABLE IF NOT EXISTS computed_signals (
+    universe TEXT,
+    symbol TEXT,
+    timestamp TIMESTAMP,
+    as_of_date DATE,
+    rule TEXT,
+    label TEXT,
+    severity TEXT,
+    triggered BOOLEAN,
+    value TEXT,
+    signals TEXT,
+    config_version TEXT,
+    run_version TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 
 @dataclass
 class BacktestResult:
@@ -112,6 +131,7 @@ class Database:
         self.conn.execute(BARS_MINUTE_SQL)
         self.conn.execute(ADJ_FACTORS_SQL)
         self.conn.execute(SYNC_META_SQL)
+        self.conn.execute(COMPUTED_SIGNALS_SQL)
 
     def write_prices(self, df: pd.DataFrame):
         if df.empty:
@@ -205,6 +225,76 @@ class Database:
         self.conn.execute("INSERT INTO adj_factors SELECT * FROM adj_factors_df")
         self.conn.unregister("adj_factors_df")
 
+    def write_signals(self, df: pd.DataFrame):
+        if df.empty:
+            return
+        required = [
+            "universe",
+            "symbol",
+            "timestamp",
+            "as_of_date",
+            "rule",
+            "label",
+            "severity",
+            "triggered",
+            "value",
+            "signals",
+            "config_version",
+            "run_version",
+        ]
+        missing = set(required) - set(df.columns)
+        if missing:
+            raise ValueError(f"Missing required columns for signals persistence: {sorted(missing)}")
+
+        data = df[required].copy()
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["as_of_date"] = pd.to_datetime(data["as_of_date"]).dt.normalize()
+        data["triggered"] = data["triggered"].astype(bool)
+
+        def _serialize_payload(payload: Any) -> str:
+            if isinstance(payload, str):
+                return payload
+            return json.dumps(payload, default=str)
+
+        def _serialize_value(value: Any):
+            if pd.isna(value):
+                return None
+            if isinstance(value, str):
+                return value
+            return json.dumps(value, default=str)
+
+        data["signals"] = data["signals"].apply(_serialize_payload)
+        data["value"] = data["value"].apply(_serialize_value)
+        data["run_version"] = data["run_version"].apply(lambda value: None if pd.isna(value) else str(value))
+
+        key_frame = data[["symbol", "timestamp", "rule", "run_version"]].drop_duplicates()
+        for _, row in key_frame.iterrows():
+            symbol = row["symbol"]
+            ts = pd.to_datetime(row["timestamp"]).to_pydatetime()
+            rule = row["rule"]
+            run_version = row["run_version"]
+            if pd.isna(run_version):
+                self.conn.execute(
+                    "DELETE FROM computed_signals WHERE symbol = ? AND timestamp = ? AND rule = ? AND run_version IS NULL",
+                    [symbol, ts, rule],
+                )
+            else:
+                self.conn.execute(
+                    "DELETE FROM computed_signals WHERE symbol = ? AND timestamp = ? AND rule = ? AND run_version = ?",
+                    [symbol, ts, rule, str(run_version)],
+                )
+
+        self.conn.register("computed_signals_df", data)
+        self.conn.execute(
+            """
+            INSERT INTO computed_signals
+            SELECT universe, symbol, timestamp, as_of_date, rule, label, severity, triggered,
+                   value, signals, config_version, run_version
+            FROM computed_signals_df
+            """
+        )
+        self.conn.unregister("computed_signals_df")
+
     def upsert_sync_meta(self, df: pd.DataFrame):
         if df.empty:
             return
@@ -277,6 +367,71 @@ class Database:
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         query = f"SELECT * FROM sync_meta {where} ORDER BY symbol"
         return self.conn.execute(query, params).fetch_df()
+
+    def read_signals(
+        self,
+        universe: Optional[str] = None,
+        symbols: Optional[Sequence[str]] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        rules: Optional[Sequence[str]] = None,
+        run_version: Optional[str] = None,
+    ) -> pd.DataFrame:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if universe:
+            clauses.append("universe = ?")
+            params.append(universe)
+        if symbols:
+            placeholders = ",".join(["?"] * len(list(symbols)))
+            clauses.append(f"symbol IN ({placeholders})")
+            params.extend(list(symbols))
+        if rules:
+            placeholders = ",".join(["?"] * len(list(rules)))
+            clauses.append(f"rule IN ({placeholders})")
+            params.extend(list(rules))
+        if run_version:
+            clauses.append("run_version = ?")
+            params.append(run_version)
+        if start:
+            clauses.append("timestamp >= ?")
+            params.append(pd.to_datetime(start))
+        if end:
+            clauses.append("timestamp <= ?")
+            params.append(pd.to_datetime(end))
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        query = f"SELECT * FROM computed_signals {where} ORDER BY symbol, timestamp"
+        result = self.conn.execute(query, params).fetch_df()
+        if result.empty:
+            return result
+        result["timestamp"] = pd.to_datetime(result["timestamp"])
+        result["as_of_date"] = pd.to_datetime(result["as_of_date"]).dt.normalize()
+
+        def _deserialize_payload(payload: Any):
+            if isinstance(payload, str):
+                if not payload:
+                    return {}
+                try:
+                    return json.loads(payload)
+                except json.JSONDecodeError:
+                    return {}
+            if payload is None:
+                return {}
+            return payload
+
+        def _deserialize_value(value: Any):
+            if value is None:
+                return None
+            if isinstance(value, str) and value:
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError:
+                    return value
+            return value
+
+        result["signals"] = result["signals"].apply(_deserialize_payload)
+        result["value"] = result["value"].apply(_deserialize_value)
+        return result
 
 
 def get_db() -> Database:
