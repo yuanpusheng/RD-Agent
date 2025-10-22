@@ -1,6 +1,7 @@
 import subprocess
+from collections import defaultdict
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import pandas as pd
 import typer
@@ -10,6 +11,7 @@ from rdagent_china.config import settings
 from rdagent_china.data.ingest import ingest_prices
 from rdagent_china.data.universe import get_csi300_symbols, get_all_a_stock_symbols
 from rdagent_china.data.akshare_client import AkshareClient
+from rdagent_china.data.provider import UnifiedDataProvider
 from rdagent_china.db import get_db
 
 app = typer.Typer(help="RD-Agent China CLI (rdc): ingest/backtest/daily-run/report/dashboard")
@@ -63,6 +65,42 @@ def ingest_price_daily(
         full["date"] = pd.to_datetime(full["date"])  # ensure datetime
         db.write_price_daily(full)
     logger.info("Ingest price_daily finished")
+
+
+@app.command()
+def sync_price_daily(
+    start: Optional[str] = typer.Option(None, help="Override start date YYYY-MM-DD; defaults to last synced + 1"),
+    end: Optional[str] = typer.Option(None, help="End date YYYY-MM-DD"),
+):
+    """Incrementally sync CSI300 daily prices using the unified provider with source fallbacks.
+    Determines per-symbol start date from sync metadata when not overridden.
+    """
+    db = get_db()
+    db.init()
+    provider = UnifiedDataProvider(db=db)
+
+    symbols = get_csi300_symbols()
+    if not symbols:
+        logger.info("No symbols to sync")
+        return
+
+    # Figure out start dates per symbol
+    groups: Dict[str, List[str]] = defaultdict(list)
+    for sym in symbols:
+        s = start
+        if s is None:
+            last_dt = provider.latest_synced_date(sym, dataset="price_daily")
+            if last_dt is not None:
+                s = (pd.to_datetime(last_dt) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        groups[s or ""]  # ensure key exists
+        groups[s or ""].append(sym)
+
+    # Fetch by groups and persist via provider (which also upserts sync_meta)
+    for s_key, syms in groups.items():
+        s_val = s_key or None
+        logger.info(f"Syncing {len(syms)} symbols from {s_val or 'beginning'}")
+        _ = provider.get_price_daily(syms, start=s_val, end=end)
+    logger.info("Sync price_daily finished")
 
 
 @app.command()
