@@ -21,6 +21,12 @@ jobs:
       - run: make dev
       - name: lint test docs and build
         run: make lint docs-gen test-offline # test docs build
+      - name: lint monitoring modules
+        run: make monitor-lint
+      - name: run monitoring tests
+        run: make monitor-test
+      - name: build monitoring Docker image
+        run: make monitor-image
     strategy:
       matrix:
         python-version:

@@ -104,7 +104,19 @@ select = ["ALL"]
 "test/*" = ["S101"]
 
 [tool.setuptools]
-packages = ["rdagent", "rdagent_china"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = [
+  "rdagent",
+  "rdagent.*",
+  "rdagent_china",
+  "rdagent_china.*",
+]
+
+[tool.setuptools.package-data]
+"rdagent" = ["**/*.json", "**/*.yaml", "**/*.yml", "**/*.toml"]
+"rdagent_china" = ["**/*.json", "**/*.yaml", "**/*.yml", "**/*.toml"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
@@ -112,6 +124,7 @@ dependencies = {file = ["requirements.txt"]}
 [tool.setuptools.dynamic.optional-dependencies]
 docs = {file = ["requirements/docs.txt"]}
 lint = {file = ["requirements/lint.txt"]}
+monitor = {file = ["requirements/monitor.txt"]}
 package = {file = ["requirements/package.txt"]}
 test = {file = ["requirements/test.txt"]}
 torch = {file = ["requirements/torch.txt"]} # some agent algorithms need torch.  pip install rdagent[torch]

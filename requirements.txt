@@ -43,6 +43,7 @@ docker
 # demo related
 streamlit>=1.47  # to support  input_c.text_area(..., height="content", ...)
 plotly
+mplfinance
 st-theme
 randomname
 flask
@@ -74,6 +75,7 @@ nest-asyncio
 
 # RD-Agent China extras
 akshare
+lark-oapi  # Feishu/Lark SDK for alert integrations
 # optional but supported fallbacks
 tushare
 pyyaml

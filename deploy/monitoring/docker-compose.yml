@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  scheduler:
+    build:
+      context: ../..
+      dockerfile: deploy/monitoring/Dockerfile
+    image: rdagent-monitor:latest
+    command:
+      - deploy/monitoring/monitor-entrypoint.sh
+    env_file:
+      - ../../.env.monitoring
+    volumes:
+      - monitor-data:/app/var/data
+      - monitor-cache:/app/var/cache
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: deploy/monitoring/Dockerfile
+    image: rdagent-monitor:latest
+    command:
+      - deploy/monitoring/dashboard-entrypoint.sh
+    env_file:
+      - ../../.env.monitoring
+    ports:
+      - "${MONITOR_DASHBOARD_PORT:-19555}:19555"
+    volumes:
+      - monitor-data:/app/var/data
+      - monitor-cache:/app/var/cache
+    depends_on:
+      - scheduler
+    restart: unless-stopped
+
+volumes:
+  monitor-data:
+  monitor-cache:
