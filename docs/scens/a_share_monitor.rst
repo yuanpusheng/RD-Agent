@@ -24,6 +24,39 @@ To replay a historical window via the same automation pipeline:
 
    rdagent a-monitor backtest --start 2024-01-01 --end 2024-03-31
 
+Dashboard UI
+============
+
+Launch the Streamlit dashboard to explore persisted signals, market breadth, and the
+underlying log traces:
+
+.. code-block:: bash
+
+   rdagent a-monitor ui --log-dir path/to/logs --universe CSI300
+
+The UI exposes four tabs tailored to the monitoring workflow:
+
+* **Overview** – aggregate metrics, market breadth visualisation, and a returns heatmap.
+* **Watchlist & Filters** – interactive universe selection, severity/rule filters, and highlighted rules.
+* **Signal Feed** – sortable feed with CSV export and integrated trace inspector hooked to RD-Agent's logging storage.
+* **Stock Detail** – Plotly and optional ``mplfinance`` charts with signal timelines for the focused symbol.
+
+Use ``--log-dir`` to point at an RD-Agent session folder if you want to inspect trace
+messages, and ``--session`` to preselect a run nested under that directory. The
+``--universe`` option seeds the default universe selector.
+
+.. figure:: /_static/a_share_monitor_overview.svg
+   :alt: A-share monitor overview tab with summary metrics and market breadth plots
+   :width: 640px
+
+   Overview tab highlighting key monitors.
+
+.. figure:: /_static/a_share_monitor_detail.svg
+   :alt: Stock detail tab illustrating candlestick overlays and trace integration
+   :width: 640px
+
+   Stock-specific drill down with optional ``mplfinance`` rendering and trace hooks.
+
 Configuration
 =============
 

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <rect x="0" y="0" width="640" height="360" fill="#f8fafc"/>
+  <text x="32" y="54" font-family="Segoe UI, Arial, sans-serif" font-size="28" fill="#1f2a44">A-share Monitor – Stock Detail</text>
+  <rect x="32" y="84" width="576" height="120" rx="12" ry="12" fill="#ffffff" stroke="#d4d4d8" stroke-width="2"/>
+  <text x="54" y="122" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#475569">• Plotly candlestick with MA5 &amp; MA20 overlays</text>
+  <text x="54" y="150" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#475569">• Optional mplfinance rendering toggle</text>
+  <text x="54" y="178" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#475569">• Volume bars and signal history timeline</text>
+  <rect x="32" y="220" width="576" height="96" rx="12" ry="12" fill="#ffffff" stroke="#d4d4d8" stroke-width="2"/>
+  <text x="54" y="258" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#475569">Trace inspector consumes RD-Agent FileStorage logs</text>
+  <text x="54" y="286" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#475569">Highlight rules to correlate log events and signal rows.</text>
+</svg>
