@@ -9,6 +9,7 @@ from typing import Optional, Sequence
 import pandas as pd
 from loguru import logger
 
+from rdagent_china.alerts import AlertDispatcher
 from rdagent_china.config import settings
 from rdagent_china.data.provider import UnifiedDataProvider
 from rdagent_china.data.universe import resolve_universe
@@ -57,6 +58,7 @@ class MonitorLoop:
         fetch_retries: Optional[int] = None,
         fetch_retry_delay: Optional[float] = None,
         config_version: Optional[str] = None,
+        alert_dispatcher: Optional[AlertDispatcher] = None,
     ) -> None:
         self._settings = settings
         self.db = db or get_db()
@@ -76,10 +78,19 @@ class MonitorLoop:
         self.fetch_retries = max(1, retries_source)
         self.fetch_retry_delay = fetch_retry_delay or self._settings.monitor_fetch_retry_delay_seconds
         self.config_version = config_version or self._settings.monitor_config_version
+        self.alert_dispatcher = alert_dispatcher or self._build_dispatcher()
 
     @property
     def settings(self):  # pragma: no cover - simple accessor
         return self._settings
+
+    def _build_dispatcher(self) -> AlertDispatcher | None:
+        try:
+            dispatcher = AlertDispatcher(settings=self._settings, db=self.db)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning("Failed to initialize alert dispatcher: {}", exc)
+            return None
+        return dispatcher
 
     def run_cycle(self, *, context: MonitorRunContext | None = None, **kwargs) -> pd.DataFrame:
         """Execute a monitoring cycle synchronously and persist new alerts.
@@ -119,6 +130,8 @@ class MonitorLoop:
             return persisted
 
         self._update_state(persisted)
+        triggered_records = [record for record in filtered if record.triggered]
+        self._dispatch_alerts(triggered_records)
         logger.info(
             "Persisted {} alerts for universe '{}'", len(persisted), universe_label
         )
@@ -225,6 +238,16 @@ class MonitorLoop:
         payload = persisted[["universe", "symbol", "rule", "timestamp", "value"]].copy()
         payload = payload.rename(columns={"timestamp": "last_triggered", "value": "last_value"})
         self.db.write_monitor_state(payload)
+
+    def _dispatch_alerts(self, records: Sequence[SignalRecord]) -> None:
+        if not records:
+            return
+        if self.alert_dispatcher is None:
+            return
+        try:
+            self.alert_dispatcher.dispatch(records)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning("Alert dispatch failed: {}", exc)
 
 
 class MonitorLoopRunner:

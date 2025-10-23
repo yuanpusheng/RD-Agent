@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -30,6 +30,18 @@ class Settings(BaseSettings):
     monitor_fetch_retries: int = 3
     monitor_fetch_retry_delay_seconds: float = 2.0
     monitor_config_version: str = "monitor-v1"
+
+    monitor_alert_channels_enabled: List[str] = ["feishu"]
+    monitor_alert_http_timeout_seconds: float = 5.0
+    monitor_alert_notification_cooldown_minutes: int = 60
+    monitor_alert_feishu_webhook: Optional[str] = None
+    monitor_alert_feishu_secret: Optional[str] = None
+    monitor_alert_wecom_webhook: Optional[str] = None
+    monitor_alert_slack_webhook: Optional[str] = None
+    monitor_alert_email_webhook: Optional[str] = None
+    monitor_alert_email_secret: Optional[str] = None
+    monitor_alert_subscriptions_path: Optional[Path] = None
+    monitor_alert_subscriptions: list[dict[str, Any]] = []
 
     @property
     def db_url(self) -> str:

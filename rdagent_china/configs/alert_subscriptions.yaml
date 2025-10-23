@@ -1,0 +1,8 @@
+# Example subscriptions for the monitoring alert dispatcher.
+#
+# Each entry can target a specific rule and optional symbol/universe filters.
+# Channels are optional; when omitted the alert will be sent to every enabled channel.
+subscriptions:
+  - rule: volume_spike_alert
+    symbols: ["000300.SH", "600519.SS"]
+    channels: ["feishu"]
