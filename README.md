@@ -356,6 +356,31 @@ The **[🖥️ Live Demo](https://rdagent.azurewebsites.net/)** is implemented b
   `examples/ashare_monitoring/`. See the
   [scenario runbook](docs/scens/a_share_monitor.rst) for a step-by-step guide.
 
+  Environment variables for the monitoring stack can be bootstrapped from
+  `.env.monitoring.example`. Copy it to `.env.monitoring` and fill in TuShare or
+  Feishu credentials along with custom paths for `RDC_DUCKDB_PATH` and
+  `RDC_DATA_CACHE_DIR`. The monitor persists market data inside
+  `rdagent_china/data` by default; redirect those variables to external volumes
+  if you prefer to keep data outside the repository.
+
+  For a local end-to-end run, `scripts/monitoring_quickstart.sh [path-to-env]`
+  installs the monitoring extras, ensures sample configs exist under
+  `monitor-config/`, launches the scheduler, and serves the Streamlit dashboard
+  on the configured port (19555 by default).
+
+  A Docker Compose stack is also available under `deploy/monitoring/`:
+
+  ```bash
+  cp .env.monitoring.example .env.monitoring
+  docker compose -f deploy/monitoring/docker-compose.yml up --build
+  ```
+
+  The compose services share named volumes (`monitor-data`, `monitor-cache`) and
+  honour the `MONITOR_*` variables defined in `.env.monitoring`. Override
+  `MONITOR_ENABLE_INTRADAY`, `MONITOR_UNIVERSE`, or `MONITOR_WATCHLIST` to tailor
+  the scheduler, and adjust `MONITOR_DASHBOARD_PORT` to change the published UI
+  port.
+
 ### 🖥️ Monitor the Application Results
 - You can run the following command for our demo program to see the run logs.
 

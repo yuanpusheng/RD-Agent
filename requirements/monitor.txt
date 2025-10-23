@@ -1,0 +1,17 @@
+# Requirements for the RD-Agent China monitoring scenario.
+akshare
+apscheduler
+backtrader
+clickhouse-connect
+duckdb
+duckdb-engine
+httpx
+jinja2
+lark-oapi  # Official Feishu/Lark Python SDK
+pandas-ta
+plotly
+streamlit>=1.47
+mplfinance
+selenium
+# TuShare is optional but recommended for richer data coverage.
+tushare
