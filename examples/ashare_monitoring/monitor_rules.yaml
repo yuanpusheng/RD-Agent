@@ -1,0 +1,72 @@
+# Sample monitoring rules for the RD-Agent China A-share monitoring loop.
+#
+# The configuration demonstrates how multiple indicator and event sources can be
+# composed into higher level rules.  It is suitable for quick starts and as a
+# template when wiring additional analytics.
+signals:
+  trend_fast:
+    indicator: ema_cross
+    params:
+      short_window: 3
+      long_window: 5
+  volume_pressure:
+    indicator: volume_spike
+    params:
+      window: 3
+      threshold: 2.0
+  gap_detector:
+    type: event
+    event: gap_open
+    params:
+      threshold: 0.03
+  momentum_rsi:
+    indicator: rsi
+    params:
+      period: 3
+
+rules:
+  - name: volume_breakout_combo
+    description: >-
+      Alert when a symbol gaps up on the open, prints unusually high volume, and
+      the fast EMA has crossed above the slow EMA.
+    all:
+      - signal: trend_fast
+        field: signal
+        operator: eq
+        value: 1.0
+      - signal: volume_pressure
+        field: ratio
+        operator: gte
+        value: 2.0
+      - signal: gap_detector
+        field: gap_up
+        operator: is_true
+    emit:
+      label: VOLUME_BREAKOUT
+      severity: high
+    value:
+      signal: volume_pressure
+      field: ratio
+
+  - name: rsi_overbought_watch
+    any:
+      - signal: momentum_rsi
+        field: rsi
+        operator: gt
+        value: 70
+    emit:
+      label: RSI_OVERBOUGHT
+      severity: medium
+    value:
+      signal: momentum_rsi
+      field: rsi
+
+  - name: gap_down_alert
+    any:
+      - signal: gap_detector
+        field: gap_down
+        operator: is_true
+    emit:
+      label: GAP_DOWN
+      severity: low
+    value: -1.0
