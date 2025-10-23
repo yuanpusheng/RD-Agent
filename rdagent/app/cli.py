@@ -145,6 +145,12 @@ def a_monitor_backtest(
         "--checkout/--no-checkout",
         help="When resuming, reuse the existing session folder by default.",
     ),
+    config: Path | None = typer.Option(None, "--config", help="Path to the evaluation YAML/JSON configuration."),
+    output_dir: Path = typer.Option(
+        Path("rdagent_china/reports/a_monitor_backtest"),
+        "--output-dir",
+        help="Directory where evaluation reports will be written.",
+    ),
 ) -> None:
     updates: dict[str, object] = {
         "mode": "backtest",
@@ -158,6 +164,9 @@ def a_monitor_backtest(
 
     settings = _make_a_monitor_settings(updates)
 
+    db = get_db()
+    db.init()
+
     launch_a_share_monitor(
         settings,
         resume_path=resume,
@@ -166,6 +175,41 @@ def a_monitor_backtest(
         all_duration=all_duration,
         checkout=checkout,
     )
+
+    from rdagent_china.backtest.config import SignalBacktestConfig
+    from rdagent_china.backtest.signals import SignalBacktester
+
+    if config is not None:
+        eval_config = SignalBacktestConfig.from_file(config)
+    else:
+        eval_config = SignalBacktestConfig()
+
+    override_kwargs: dict[str, object] = {}
+    base_symbols = list(settings.symbols) if getattr(settings, "symbols", None) else []
+    selected_symbols = list(symbol) if symbol else base_symbols
+    if selected_symbols:
+        override_kwargs["symbols"] = selected_symbols
+    if start is not None:
+        override_kwargs["start"] = start
+    if end is not None:
+        override_kwargs["end"] = end
+    if override_kwargs:
+        eval_config = eval_config.with_overrides(**override_kwargs)
+
+    report_output = eval_config.report.output_dir or output_dir
+    report_path = Path(report_output)
+    if eval_config.report.output_dir != report_path:
+        report_cfg = eval_config.report.model_copy(update={"output_dir": report_path})
+        eval_config = eval_config.model_copy(update={"report": report_cfg})
+
+    backtester = SignalBacktester(db=db, config=eval_config)
+    result = backtester.run()
+    result.save(report_path)
+    final_report = report_path / "report.html"
+    if result.is_empty():
+        logger.warning("Signal evaluation produced no trades; report saved to %s", final_report.resolve())
+    else:
+        logger.info("Signal evaluation report saved to %s", final_report.resolve())
 
 
 @a_monitor_app.command("ui")
