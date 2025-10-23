@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS monitor_alert_state (
     rule TEXT,
     last_triggered TIMESTAMP,
     last_value TEXT,
+    last_notified TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -144,6 +145,13 @@ class Database:
         self.conn.execute(SYNC_META_SQL)
         self.conn.execute(COMPUTED_SIGNALS_SQL)
         self.conn.execute(MONITOR_ALERT_STATE_SQL)
+        self._ensure_monitor_alert_state_schema()
+
+    def _ensure_monitor_alert_state_schema(self) -> None:
+        try:
+            self.conn.execute("ALTER TABLE monitor_alert_state ADD COLUMN IF NOT EXISTS last_notified TIMESTAMP")
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.debug("Monitor alert state schema check failed: %s", exc)
 
     def write_prices(self, df: pd.DataFrame):
         if df.empty:
@@ -313,6 +321,10 @@ class Database:
         cols = ["universe", "symbol", "rule", "last_triggered", "last_value"]
         data = df[cols].copy()
         data["last_triggered"] = pd.to_datetime(data["last_triggered"])
+        if "last_notified" in df.columns:
+            data["last_notified"] = pd.to_datetime(df["last_notified"])
+        else:
+            data["last_notified"] = pd.NaT
 
         def _serialize_state(value: Any):
             if value is None or (isinstance(value, float) and pd.isna(value)):
@@ -322,6 +334,7 @@ class Database:
             return json.dumps(value, default=str)
 
         data["last_value"] = data["last_value"].apply(_serialize_state)
+        data["last_notified"] = data["last_notified"].apply(lambda ts: None if pd.isna(ts) else pd.to_datetime(ts))
 
         key_frame = data[["universe", "symbol", "rule"]].drop_duplicates()
         for _, row in key_frame.iterrows():
@@ -342,8 +355,8 @@ class Database:
         self.conn.register("monitor_alert_state_df", data)
         self.conn.execute(
             """
-            INSERT INTO monitor_alert_state (universe, symbol, rule, last_triggered, last_value)
-            SELECT universe, symbol, rule, last_triggered, last_value FROM monitor_alert_state_df
+            INSERT INTO monitor_alert_state (universe, symbol, rule, last_triggered, last_value, last_notified)
+            SELECT universe, symbol, rule, last_triggered, last_value, last_notified FROM monitor_alert_state_df
             """
         )
         self.conn.unregister("monitor_alert_state_df")
@@ -371,11 +384,16 @@ class Database:
             clauses.append(f"rule IN ({placeholders})")
             params.extend(list(rules))
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        query = f"SELECT universe, symbol, rule, last_triggered, last_value, updated_at FROM monitor_alert_state {where} ORDER BY symbol, rule"
+        query = (
+            "SELECT universe, symbol, rule, last_triggered, last_value, last_notified, updated_at "
+            f"FROM monitor_alert_state {where} ORDER BY symbol, rule"
+        )
         result = self.conn.execute(query, params).fetch_df()
         if result.empty:
             return result
         result["last_triggered"] = pd.to_datetime(result["last_triggered"])
+        if "last_notified" in result.columns:
+            result["last_notified"] = pd.to_datetime(result["last_notified"])
         result["updated_at"] = pd.to_datetime(result["updated_at"])
 
         def _deserialize_state(value: Any):
@@ -390,6 +408,69 @@ class Database:
 
         result["last_value"] = result["last_value"].apply(_deserialize_state)
         return result
+
+    def update_monitor_notification_state(
+        self, entries: Sequence[tuple[Optional[str], str, str, pd.Timestamp]]
+    ) -> None:
+        if not entries:
+            return
+        for universe, symbol, rule, timestamp in entries:
+            ts = pd.to_datetime(timestamp)
+            py_ts = ts.to_pydatetime()
+            if universe is None or (isinstance(universe, float) and pd.isna(universe)) or universe == "":
+                where_clause = "universe IS NULL AND symbol = ? AND rule = ?"
+                where_params: list[Any] = [symbol, rule]
+                exists = self.conn.execute(
+                    f"SELECT 1 FROM monitor_alert_state WHERE {where_clause} LIMIT 1",
+                    where_params,
+                ).fetchone()
+                if exists:
+                    self.conn.execute(
+                        "UPDATE monitor_alert_state SET last_notified = ?, updated_at = CURRENT_TIMESTAMP "
+                        "WHERE universe IS NULL AND symbol = ? AND rule = ?",
+                        [py_ts, symbol, rule],
+                    )
+                else:
+                    payload = pd.DataFrame(
+                        [
+                            {
+                                "universe": None,
+                                "symbol": symbol,
+                                "rule": rule,
+                                "last_triggered": ts,
+                                "last_value": None,
+                                "last_notified": ts,
+                            }
+                        ]
+                    )
+                    self.write_monitor_state(payload)
+            else:
+                where_clause = "universe = ? AND symbol = ? AND rule = ?"
+                where_params2: list[Any] = [universe, symbol, rule]
+                exists = self.conn.execute(
+                    f"SELECT 1 FROM monitor_alert_state WHERE {where_clause} LIMIT 1",
+                    where_params2,
+                ).fetchone()
+                if exists:
+                    self.conn.execute(
+                        "UPDATE monitor_alert_state SET last_notified = ?, updated_at = CURRENT_TIMESTAMP "
+                        "WHERE universe = ? AND symbol = ? AND rule = ?",
+                        [py_ts, universe, symbol, rule],
+                    )
+                else:
+                    payload = pd.DataFrame(
+                        [
+                            {
+                                "universe": universe,
+                                "symbol": symbol,
+                                "rule": rule,
+                                "last_triggered": ts,
+                                "last_value": None,
+                                "last_notified": ts,
+                            }
+                        ]
+                    )
+                    self.write_monitor_state(payload)
 
     def upsert_sync_meta(self, df: pd.DataFrame):
         if df.empty:

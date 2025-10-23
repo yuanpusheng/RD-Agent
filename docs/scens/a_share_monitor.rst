@@ -39,6 +39,23 @@ modifying the templates in :code:`configs/a_share_monitor/`.  Common options inc
 ``ASHARE_MONITOR_MODE``
     ``live`` or ``backtest``.  The CLI subcommands wire this up automatically.
 
+Alert delivery can be configured through the ``RDC_MONITOR_ALERT_*`` environment family. Typical values include:
+
+``RDC_MONITOR_ALERT_CHANNELS_ENABLED``
+    Comma-separated list of enabled channels (``feishu``, ``wecom``, ``slack``, ``email``).
+
+``RDC_MONITOR_ALERT_<CHANNEL>_WEBHOOK``
+    Webhook endpoint for the given channel (for example ``RDC_MONITOR_ALERT_FEISHU_WEBHOOK``).
+
+``RDC_MONITOR_ALERT_<CHANNEL>_SECRET``
+    Optional signing secret or bearer token applied when posting alerts.
+
+``RDC_MONITOR_ALERT_NOTIFICATION_COOLDOWN_MINUTES``
+    Global rate-limit window for duplicate notifications.
+
+``RDC_MONITOR_ALERT_SUBSCRIPTIONS_PATH``
+    Path to a YAML file describing per-rule and per-symbol alert subscriptions.
+
 Where to extend
 ===============
 
