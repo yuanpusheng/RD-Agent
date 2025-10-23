@@ -1,0 +1,25 @@
+{
+  "name": "ashare-focus",
+  "base_universe": "CSI300",
+  "notes": "Example universe customisation that narrows CSI300 to a focused basket and declares reusable watchlists.",
+  "include": [
+    "000001.SZ",
+    "600519.SH",
+    "300750.SZ"
+  ],
+  "exclude": [
+    "000858.SZ"
+  ],
+  "watchlists": {
+    "watchlist-growth": [
+      "300750.SZ",
+      "002594.SZ",
+      "688981.SH"
+    ],
+    "watchlist-liquidity": [
+      "000001.SZ",
+      "600519.SH",
+      "601318.SH"
+    ]
+  }
+}

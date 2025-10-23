@@ -1,0 +1,18 @@
+# Sample alert subscriptions for the RD-Agent China monitoring loop.
+#
+# Subscriptions can target specific rules, symbols, or universes.  Channels map
+# to the webhook integrations enabled via RDC_MONITOR_ALERT_CHANNELS_ENABLED.
+subscriptions:
+  - rule: volume_breakout_combo
+    universes: ["CSI300"]
+    channels: ["feishu", "email"]
+
+  - rule: rsi_overbought_watch
+    universes: ["watchlist-growth"]
+    channels: ["wecom"]
+
+  - rule: "*"
+    symbols:
+      - 600519.SH
+    channels:
+      - slack

@@ -45,6 +45,7 @@ fail_under = 80
 [tool.coverage.run]
 source = [
   "rdagent",
+  "rdagent_china",
 ]
 
 [tool.isort]

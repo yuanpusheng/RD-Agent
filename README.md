@@ -336,18 +336,25 @@ The **[🖥️ Live Demo](https://rdagent.azurewebsites.net/)** is implemented b
   rdagent data_science --competition tabular-playground-series-dec-2021
   ```
 
-- Run the **A-share market monitoring loop**:
+- Operate the **A-share market monitoring stack**:
+
   ```bash
-  rdagent a-monitor run
+  # ingest or refresh pricing data
+  rdc ingest --universe CSI300 --start 2024-01-01 --end 2024-01-31
+  rdc sync-price-daily --end 2024-01-31
+
+  # execute monitoring cycles
+  rdc monitor --run-once --watchlist 000001.SZ,600519.SH
+  rdc monitor --intraday --universe CSI300
+
+  # backtest and visualise results
+  rdc backtest --symbols 000001.SZ --start 2024-01-01 --end 2024-03-31
+  rdc dashboard --port 19555
   ```
-  To replay historical data windows, use:
-  ```bash
-  rdagent a-monitor backtest --start 2024-01-01 --end 2024-03-31
-  ```
-  Launch the Streamlit dashboard for interactive monitoring (market breadth, signal feed, trace inspector):
-  ```bash
-  rdagent a-monitor ui --log-dir <path/to/logs> --universe CSI300
-  ```
+
+  Sample rule sets, universe templates, and alert subscriptions live under
+  `examples/ashare_monitoring/`. See the
+  [scenario runbook](docs/scens/a_share_monitor.rst) for a step-by-step guide.
 
 ### 🖥️ Monitor the Application Results
 - You can run the following command for our demo program to see the run logs.
