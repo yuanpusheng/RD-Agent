@@ -344,6 +344,10 @@ The **[🖥️ Live Demo](https://rdagent.azurewebsites.net/)** is implemented b
   ```bash
   rdagent a-monitor backtest --start 2024-01-01 --end 2024-03-31
   ```
+  Launch the Streamlit dashboard for interactive monitoring (market breadth, signal feed, trace inspector):
+  ```bash
+  rdagent a-monitor ui --log-dir <path/to/logs> --universe CSI300
+  ```
 
 ### 🖥️ Monitor the Application Results
 - You can run the following command for our demo program to see the run logs.

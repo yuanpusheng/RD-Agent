@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <rect x="0" y="0" width="640" height="360" fill="#f4f6fb"/>
+  <text x="32" y="54" font-family="Segoe UI, Arial, sans-serif" font-size="28" fill="#1f2a44">A-share Monitor – Overview</text>
+  <rect x="32" y="80" width="576" height="96" rx="12" ry="12" fill="#ffffff" stroke="#d0d5dd" stroke-width="2"/>
+  <text x="54" y="118" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#4a5568">• Summary metrics for signals, symbols, rules</text>
+  <text x="54" y="146" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#4a5568">• Market breadth chart (advancers vs decliners)</text>
+  <text x="54" y="174" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#4a5568">• Rolling heatmap of percentage changes</text>
+  <rect x="32" y="200" width="576" height="120" rx="12" ry="12" fill="#ffffff" stroke="#d0d5dd" stroke-width="2"/>
+  <text x="54" y="238" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#4a5568">Launch with: rdagent a-monitor ui --log-dir logs/ --universe CSI300</text>
+  <text x="54" y="268" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#4a5568">Filter by cadence (EOD/Intraday/Both), severity, and watchlist.</text>
+</svg>

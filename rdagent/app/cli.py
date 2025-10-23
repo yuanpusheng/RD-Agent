@@ -168,6 +168,30 @@ def a_monitor_backtest(
     )
 
 
+@a_monitor_app.command("ui")
+def a_monitor_ui(
+    port: int = typer.Option(19560, help="Streamlit server port for the dashboard."),
+    log_dir: Path | None = typer.Option(None, "--log-dir", help="Optional RD-Agent log directory."),
+    session: str | None = typer.Option(None, "--session", help="Preselect a session folder inside the log directory."),
+    universe: str = typer.Option("CSI300", "--universe", help="Default universe to display on launch."),
+) -> None:
+    """Launch the A-share monitoring Streamlit dashboard."""
+
+    with rpath("rdagent_china.dashboard.a_share_monitor", "app.py") as app_path:
+        commands = ["streamlit", "run", str(app_path), f"--server.port={port}"]
+        extra_args: list[str] = []
+        if log_dir:
+            extra_args.append(f"--log-dir={str(log_dir)}")
+        if session:
+            extra_args.append(f"--session={session}")
+        if universe:
+            extra_args.append(f"--universe={universe}")
+        if extra_args:
+            commands.append("--")
+            commands.extend(extra_args)
+        subprocess.run(commands)
+
+
 app.command(name="fin_factor")(fin_factor)
 app.command(name="fin_model")(fin_model)
 app.command(name="fin_quant")(fin_quant)
