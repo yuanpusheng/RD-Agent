@@ -15,6 +15,7 @@ from rdagent_china.data.akshare_client import AkshareClient
 from rdagent_china.data.provider import UnifiedDataProvider
 from rdagent_china.db import get_db
 from rdagent_china.monitor import MonitorLoop, MonitorLoopRunner, MonitorRunContext
+from rdagent_china import daily_run as daily_pipeline
 
 app = typer.Typer(help="RD-Agent China CLI (rdc): ingest/backtest/daily-run/report/dashboard")
 
@@ -130,14 +131,40 @@ def backtest(
 
 
 @app.command(name="daily-run")
-def daily_run():
-    # simple daily workflow: ingest latest and backtest recent 3 months
-    from datetime import date, timedelta
+def daily_run(
+    universe: str = typer.Option(
+        daily_pipeline.DEFAULT_UNIVERSE, help="Universe identifier or comma-separated symbol list."
+    ),
+    start_date: Optional[str] = typer.Option(None, help="Override start date (YYYY-MM-DD)."),
+    end_date: Optional[str] = typer.Option(None, help="Override end date (YYYY-MM-DD)."),
+    lookback_days: int = typer.Option(
+        daily_pipeline.DEFAULT_LOOKBACK_DAYS, help="Lookback window when start date not provided."
+    ),
+    limit: Optional[int] = typer.Option(None, help="Limit number of symbols to process."),
+    strategy: Optional[str] = typer.Option(None, help="Force a specific strategy id (e.g. 'sma')."),
+    export_path: Optional[Path] = typer.Option(None, help="Optional file path to export the signals."),
+    export_format: Optional[str] = typer.Option(
+        None, help="Export format (csv or parquet). Defaults to suffix derived from export_path or csv."
+    ),
+):
+    try:
+        result = daily_pipeline.run_pipeline(
+            universe=universe,
+            start_date=start_date,
+            end_date=end_date,
+            lookback_days=lookback_days,
+            limit=limit,
+            strategy=strategy,
+            export_path=export_path,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    except RuntimeError as exc:
+        typer.secho(f"Daily signal pipeline failed: {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
 
-    end = date.today().isoformat()
-    start = (date.today() - timedelta(days=120)).isoformat()
-    ingest(universe="CSI300", start=start, end=end)
-    backtest(symbols=None, start=start, end=end)
+    daily_pipeline.display_summary(result)
 
 
 @app.command()

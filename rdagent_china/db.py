@@ -108,6 +108,21 @@ CREATE TABLE IF NOT EXISTS monitor_alert_state (
 );
 """
 
+SIGNALS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS signals (
+    universe TEXT,
+    symbol TEXT,
+    as_of_date DATE,
+    timestamp TIMESTAMP,
+    signal INTEGER,
+    strategy_id TEXT,
+    strategy_version TEXT,
+    confidence DOUBLE,
+    explanation TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 
 @dataclass
 class BacktestResult:
@@ -144,6 +159,7 @@ class Database:
         self.conn.execute(ADJ_FACTORS_SQL)
         self.conn.execute(SYNC_META_SQL)
         self.conn.execute(COMPUTED_SIGNALS_SQL)
+        self.conn.execute(SIGNALS_TABLE_SQL)
         self.conn.execute(MONITOR_ALERT_STATE_SQL)
         self._ensure_monitor_alert_state_schema()
 
@@ -314,6 +330,70 @@ class Database:
             """
         )
         self.conn.unregister("computed_signals_df")
+
+    def write_strategy_signals(self, df: pd.DataFrame) -> None:
+        if df.empty:
+            return
+        required = [
+            "universe",
+            "symbol",
+            "as_of_date",
+            "timestamp",
+            "signal",
+            "strategy_id",
+            "strategy_version",
+            "confidence",
+            "explanation",
+        ]
+        missing = set(required) - set(df.columns)
+        if missing:
+            raise ValueError(f"Missing required columns for strategy signal persistence: {sorted(missing)}")
+
+        data = df[required].copy()
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["as_of_date"] = pd.to_datetime(data["as_of_date"]).dt.normalize()
+        data["signal"] = data["signal"].astype(int)
+        data["confidence"] = data["confidence"].astype(float)
+
+        def _optional_string(value: Any) -> str | None:
+            if value is None:
+                return None
+            if isinstance(value, float) and pd.isna(value):
+                return None
+            text = str(value)
+            return text if text else None
+
+        data["strategy_id"] = data["strategy_id"].apply(_optional_string)
+        data["strategy_version"] = data["strategy_version"].apply(_optional_string)
+        data["universe"] = data["universe"].apply(_optional_string)
+        data["explanation"] = data["explanation"].fillna("").astype(str)
+
+        key_frame = data[["symbol", "as_of_date", "strategy_id", "strategy_version"]].drop_duplicates()
+        for _, row in key_frame.iterrows():
+            symbol = row["symbol"]
+            as_of_date = pd.to_datetime(row["as_of_date"]).to_pydatetime()
+            strategy_id = row["strategy_id"]
+            strategy_version = row["strategy_version"]
+            if strategy_version is None:
+                self.conn.execute(
+                    "DELETE FROM signals WHERE symbol = ? AND as_of_date = ? AND strategy_id = ? AND strategy_version IS NULL",
+                    [symbol, as_of_date, strategy_id],
+                )
+            else:
+                self.conn.execute(
+                    "DELETE FROM signals WHERE symbol = ? AND as_of_date = ? AND strategy_id = ? AND strategy_version = ?",
+                    [symbol, as_of_date, strategy_id, strategy_version],
+                )
+
+        self.conn.register("daily_signals_df", data)
+        self.conn.execute(
+            """
+            INSERT INTO signals (universe, symbol, as_of_date, timestamp, signal, strategy_id, strategy_version, confidence, explanation)
+            SELECT universe, symbol, as_of_date, timestamp, signal, strategy_id, strategy_version, confidence, explanation
+            FROM daily_signals_df
+            """
+        )
+        self.conn.unregister("daily_signals_df")
 
     def write_monitor_state(self, df: pd.DataFrame):
         if df.empty:
@@ -608,6 +688,42 @@ class Database:
 
         result["signals"] = result["signals"].apply(_deserialize_payload)
         result["value"] = result["value"].apply(_deserialize_value)
+        return result
+
+    def read_strategy_signals(
+        self,
+        symbols: Optional[Sequence[str]] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        strategy_id: Optional[str] = None,
+    ) -> pd.DataFrame:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if symbols:
+            placeholders = ",".join(["?"] * len(list(symbols)))
+            clauses.append(f"symbol IN ({placeholders})")
+            params.extend(list(symbols))
+        if strategy_id:
+            clauses.append("strategy_id = ?")
+            params.append(strategy_id)
+        if start:
+            clauses.append("as_of_date >= ?")
+            params.append(pd.to_datetime(start))
+        if end:
+            clauses.append("as_of_date <= ?")
+            params.append(pd.to_datetime(end))
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        query = (
+            "SELECT universe, symbol, as_of_date, timestamp, signal, strategy_id, strategy_version, confidence, explanation, created_at "
+            f"FROM signals {where} ORDER BY symbol, as_of_date"
+        )
+        result = self.conn.execute(query, params).fetch_df()
+        if result.empty:
+            return result
+        result["as_of_date"] = pd.to_datetime(result["as_of_date"]).dt.normalize()
+        result["timestamp"] = pd.to_datetime(result["timestamp"])
+        if "created_at" in result.columns:
+            result["created_at"] = pd.to_datetime(result["created_at"])
         return result
 
 
