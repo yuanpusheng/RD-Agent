@@ -1,6 +1,8 @@
 from pathlib import Path
+import os
 from typing import Any, List, Optional
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,6 +44,13 @@ class Settings(BaseSettings):
     monitor_alert_email_secret: Optional[str] = None
     monitor_alert_subscriptions_path: Optional[Path] = None
     monitor_alert_subscriptions: list[dict[str, Any]] = []
+
+    @field_validator("monitor_alert_wecom_webhook", mode="before")
+    @classmethod
+    def _fallback_wechat_webhook(cls, value: Optional[str]) -> Optional[str]:
+        if value:
+            return value
+        return os.getenv("WECHAT_WEBHOOK_URL") or os.getenv("WECHAT_WEBHOOK")
 
     @property
     def db_url(self) -> str:

@@ -18,6 +18,7 @@ CONSTRAINTS_FILE := constraints/$(PYTHON_VERSION).txt
 # Source folders that back the monitoring workflow.
 MONITOR_SOURCES := rdagent_china/monitor rdagent_china/alerts rdagent_china/dashboard
 MONITOR_TESTS := rdagent_china/tests
+SMOKE_ARTIFACT_DIR ?= artifacts/e2e-smoke
 
 # Documentation target directory, will be adapted to specific folder for readthedocs.
 PUBLIC_DIR := $(shell [ "$READTHEDOCS" = "True" ] && echo "$READTHEDOCS_OUTPUT/html" || echo "public")
@@ -178,11 +179,15 @@ monitor-image:
 monitor-compose:
     docker compose -f deploy/monitoring/docker-compose.yml up
 
+e2e-smoke:
+    $(PIPRUN) python -m rdagent.app.cli a-monitor run --universe HS300 --mode eod --once --no-alerts --artifacts-dir $(SMOKE_ARTIFACT_DIR)
+
+ui:
+    $(PIPRUN) python -m rdagent.app.cli a-monitor ui
+
 ########################################################################################
 # Package
 ########################################################################################
-
-# Build the package.
 build:
     $(PIPRUN) python -m build
 

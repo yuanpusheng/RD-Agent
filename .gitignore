@@ -153,6 +153,7 @@ dmypy.json
 reports/
 rdagent_china/reports/
 rdagent_china/artifacts/
+artifacts/
 
 # git_ignore_folder
 git_ignore_folder/
