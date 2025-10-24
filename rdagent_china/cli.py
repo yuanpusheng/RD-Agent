@@ -13,6 +13,7 @@ from rdagent_china.data.ingest import ingest_prices
 from rdagent_china.data.universe import get_csi300_symbols, get_all_a_stock_symbols
 from rdagent_china.data.akshare_client import AkshareClient
 from rdagent_china.data.provider import UnifiedDataProvider
+from rdagent_china.data.eda import run_eda
 from rdagent_china.db import get_db
 from rdagent_china.monitor import MonitorLoop, MonitorLoopRunner, MonitorRunContext
 from rdagent_china import daily_run as daily_pipeline
@@ -104,6 +105,61 @@ def sync_price_daily(
         logger.info(f"Syncing {len(syms)} symbols from {s_val or 'beginning'}")
         _ = provider.get_price_daily(syms, start=s_val, end=end)
     logger.info("Sync price_daily finished")
+
+
+@app.command()
+def eda(
+    symbols: Optional[List[str]] = typer.Option(
+        None,
+        "--symbol",
+        "-s",
+        help="Symbol(s) to analyse. Defaults to sampling from the CSI300 universe.",
+    ),
+    sample_size: int = typer.Option(
+        3,
+        "--sample-size",
+        min=1,
+        help="Number of CSI300 symbols to analyse when --symbol is not provided.",
+    ),
+    start: Optional[str] = typer.Option(None, help="Start date YYYY-MM-DD."),
+    end: Optional[str] = typer.Option(None, help="End date YYYY-MM-DD."),
+    output_dir: Path = typer.Option(
+        Path("rdagent_china/reports/eda"), help="Directory where EDA plots and summaries will be written."
+    ),
+):
+    """Generate candlestick, volume, and indicator plots for manual QA."""
+    db = get_db()
+    db.init()
+    provider = UnifiedDataProvider(db=db)
+
+    if symbols:
+        target_symbols = list(dict.fromkeys(symbols))
+    else:
+        universe = get_csi300_symbols()
+        if not universe:
+            typer.secho("No symbols available to sample from CSI300 universe.", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+        if sample_size < len(universe):
+            target_symbols = universe[:sample_size]
+        else:
+            target_symbols = universe
+
+    typer.echo(f"Generating EDA artifacts for {len(target_symbols)} symbol(s): {', '.join(target_symbols)}")
+    results = run_eda(
+        symbols=target_symbols,
+        output_dir=output_dir,
+        provider=provider,
+        start=start,
+        end=end,
+    )
+
+    for sym, res in results.items():
+        plot_paths = [str(path) for path in res.plots.values()]
+        plot_msg = ", ".join(plot_paths) if plot_paths else "none"
+        typer.echo(f"{sym}: summary -> {res.summary_path} | plots -> {plot_msg}")
+        if res.notes:
+            for note in res.notes:
+                typer.echo(f"  note: {note}")
 
 
 @app.command()
