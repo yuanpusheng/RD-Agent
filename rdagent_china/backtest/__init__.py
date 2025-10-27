@@ -5,6 +5,7 @@ from .config import (
     ReportConfig,
     SignalBacktestConfig,
 )
+from .engine import BacktestSummary, SimpleBacktestEngine
 from .runner import run_backtest
 from .signals import RuleWindowSummary, SignalBacktester, SignalBacktestResult
 
@@ -14,6 +15,8 @@ __all__ = [
     "LabelingConfig",
     "ReportConfig",
     "SignalBacktestConfig",
+    "BacktestSummary",
+    "SimpleBacktestEngine",
     "RuleWindowSummary",
     "SignalBacktester",
     "SignalBacktestResult",

@@ -150,8 +150,7 @@ dmypy.json
 .vscode/
 
 # reports
-reports/
-rdagent_china/reports/
+/reports/
 rdagent_china/artifacts/
 
 # git_ignore_folder
