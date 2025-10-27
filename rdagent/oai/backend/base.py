@@ -427,6 +427,10 @@ class APIBackend(ABC):
         )
         return resp
 
+    def get_route_config(self) -> dict[str, Any]:
+        """Provider-specific override hook. Subclasses can override to provide per-call configuration."""
+        return {}
+
     def create_embedding(self, input_content: str | list[str], *args, **kwargs) -> list[float] | list[list[float]]:  # type: ignore[no-untyped-def]
         input_content_list = [input_content] if isinstance(input_content, str) else input_content
         resp = self._try_create_chat_completion_or_embedding(  # type: ignore[misc]
@@ -573,6 +577,25 @@ class APIBackend(ABC):
         """
         Call the chat completion function and automatically continue the conversation if the finish_reason is length.
         """
+
+        route_config: dict[str, Any] = {}
+        try:
+            candidate_config = self.get_route_config()
+        except Exception:  # noqa: BLE001
+            candidate_config = {}
+        if isinstance(candidate_config, dict):
+            route_config = candidate_config
+
+        route_json_mode = route_config.get("json_mode") if isinstance(route_config, dict) else None
+        if route_json_mode is not None:
+            json_mode = bool(route_json_mode)
+        if isinstance(route_config, dict) and "stream" in route_config and "stream" not in kwargs:
+            kwargs["stream"] = bool(route_config["stream"])
+        if isinstance(route_config, dict) and "seed" in route_config and seed is None:
+            try:
+                seed = int(route_config["seed"])
+            except (TypeError, ValueError):
+                pass
 
         if response_format is None and json_mode:
             response_format = {"type": "json_object"}

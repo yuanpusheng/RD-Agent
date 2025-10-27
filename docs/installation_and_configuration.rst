@@ -68,6 +68,11 @@ Many users encounter configuration errors when setting up DeepSeek. Here's a com
       LITELLM_PROXY_API_KEY=<replace_with_your_siliconflow_api_key>
       LITELLM_PROXY_API_BASE=https://api.siliconflow.cn/v1
 
+You can route DeepSeek models to specific agent roles by setting ``DEEPSEEK_USE_FOR`` with a comma-separated
+list (``general``, ``coder``, ``summarizer``, ``interactor``, ``reasoner``). Optional overrides like
+``DEEPSEEK_CODER_MODEL`` or ``DEEPSEEK_SUMMARIZER_MODEL`` let you choose role-specific models. When no DeepSeek key is
+configured, RD-Agent falls back to the default provider automatically.
+
 Necessary parameters include:
 
 - `CHAT_MODEL`: The model name of the chat model.
