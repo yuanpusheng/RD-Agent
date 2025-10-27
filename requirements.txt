@@ -8,7 +8,7 @@ loguru
 fire
 fuzzywuzzy
 openai
-litellm>=1.73  # to support `from litellm import get_valid_models`
+litellm>=1.78.6  # to support DeepSeek routing and `from litellm import get_valid_models`
 azure.identity
 pyarrow
 rich

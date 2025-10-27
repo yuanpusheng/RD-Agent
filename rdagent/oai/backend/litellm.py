@@ -50,6 +50,9 @@ class LiteLLMAPIBackend(APIBackend):
     _has_logged_settings: bool = False
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        LITELLM_SETTINGS.apply_provider_overrides()
+        self._active_route_config: dict[str, Any] = {}
+        self._last_complete_kwargs: LiteLLMAPIBackend.CompleteKwargs | None = None
         if not self.__class__._has_logged_settings:
             logger.info(f"{LITELLM_SETTINGS}")
             logger.log_object(LITELLM_SETTINGS.model_dump(), tag="LITELLM_SETTINGS")
@@ -91,37 +94,60 @@ class LiteLLMAPIBackend(APIBackend):
         max_tokens: int | None
         reasoning_effort: Literal["low", "medium", "high"] | None
 
-    def get_complete_kwargs(self) -> CompleteKwargs:
-        """
-        return several key settings for completion
-        getting these values from settings makes it easier to adapt to backend calls in agent systems.
-        """
-        # Call LiteLLM completion
+    def _select_model_config(self) -> tuple["LiteLLMAPIBackend.CompleteKwargs", dict[str, Any]]:
         model = LITELLM_SETTINGS.chat_model
         temperature = LITELLM_SETTINGS.chat_temperature
         max_tokens = LITELLM_SETTINGS.chat_max_tokens
         reasoning_effort = LITELLM_SETTINGS.reasoning_effort
+        route_config: dict[str, Any] = {}
 
         if LITELLM_SETTINGS.chat_model_map:
-            for t, mc in LITELLM_SETTINGS.chat_model_map.items():
-                if t in logger._tag:
-                    model = mc["model"]
-                    if "temperature" in mc:
-                        temperature = float(mc["temperature"])
-                    if "max_tokens" in mc:
-                        max_tokens = int(mc["max_tokens"])
-                    if "reasoning_effort" in mc:
-                        if mc["reasoning_effort"] in ["low", "medium", "high"]:
-                            reasoning_effort = cast(Literal["low", "medium", "high"], mc["reasoning_effort"])
+            for tag, config in LITELLM_SETTINGS.chat_model_map.items():
+                if tag in logger._tag:
+                    route_config = dict(config)
+                    if "model" in config:
+                        model = config["model"]
+                    if "temperature" in config:
+                        try:
+                            temperature = float(config["temperature"])
+                        except (TypeError, ValueError):
+                            pass
+                    if "max_tokens" in config:
+                        try:
+                            max_tokens = int(config["max_tokens"])
+                        except (TypeError, ValueError):
+                            max_tokens = None
+                    if "reasoning_effort" in config:
+                        effort = config["reasoning_effort"]
+                        if effort in ["low", "medium", "high"]:
+                            reasoning_effort = cast(Literal["low", "medium", "high"], effort)
                         else:
                             reasoning_effort = None
                     break
-        return self.CompleteKwargs(
+
+        complete_kwargs = self.CompleteKwargs(
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
             reasoning_effort=reasoning_effort,
         )
+        return complete_kwargs, route_config
+
+    def get_complete_kwargs(self) -> CompleteKwargs:
+        if self._last_complete_kwargs is not None:
+            complete_kwargs = self._last_complete_kwargs
+            self._last_complete_kwargs = None
+            return complete_kwargs
+
+        complete_kwargs, route_config = self._select_model_config()
+        self._active_route_config = route_config
+        return complete_kwargs
+
+    def get_route_config(self) -> dict[str, Any]:
+        complete_kwargs, route_config = self._select_model_config()
+        self._last_complete_kwargs = complete_kwargs
+        self._active_route_config = route_config
+        return dict(route_config)
 
     def _create_chat_completion_inner_function(  # type: ignore[no-untyped-def] # noqa: C901, PLR0912, PLR0915
         self,
@@ -214,13 +240,19 @@ class LiteLLMAPIBackend(APIBackend):
             },
             tag="token_cost",
         )
+        self._active_route_config = {}
+        self._last_complete_kwargs = None
         return content, finish_reason
 
     def supports_response_schema(self) -> bool:
         """
         Check if the backend supports function calling
         """
-        return supports_response_schema(model=LITELLM_SETTINGS.chat_model) and LITELLM_SETTINGS.enable_response_schema
+        model = self._active_route_config.get("model") if self._active_route_config else None
+        if model is None:
+            complete_kwargs, _ = self._select_model_config()
+            model = complete_kwargs["model"]
+        return supports_response_schema(model=model) and LITELLM_SETTINGS.enable_response_schema
 
     @property
     def chat_token_limit(self) -> int:

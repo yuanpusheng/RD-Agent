@@ -233,6 +233,11 @@ More details can be found in the [development setup](https://rdagent.readthedocs
   LITELLM_PROXY_API_BASE=https://api.siliconflow.cn/v1
   ```
 
+  To route DeepSeek models to specific agent roles, configure `DEEPSEEK_USE_FOR`
+  with a comma-separated list (for example `general,coder,summarizer`). Optional overrides such as `DEEPSEEK_CODER_MODEL` or `DEEPSEEK_SUMMARIZER_MODEL`
+  allow per-role model selection. When no DeepSeek key is provided, RD-Agent automatically falls back to the default
+  provider.
+
   Notice: If you are using reasoning models that include thought processes in their responses (such as \<think> tags), you need to set the following environment variable:
   ```bash
   REASONING_THINK_RM=True
