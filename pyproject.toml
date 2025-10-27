@@ -60,6 +60,7 @@ enable_error_code = [
   "ignore-without-code",
 ]
 explicit_package_bases = true
+packages = ["rdagent", "rdagent_china"]
 warn_return_any = true
 warn_unused_ignores = true
 
@@ -74,11 +75,12 @@ log_cli_level = "info"
 log_date_format = "%Y-%m-%d %H:%M:%S"
 log_format = "%(asctime)s %(levelname)s %(message)s"
 minversion = "6.0"
+testpaths = ["test", "rdagent_china/tests"]
 
 [tool.ruff]
 fix = true
 line-length = 120
-src = ["rdagent"]
+src = ["rdagent", "rdagent_china"]
 
 [tool.ruff.lint]
 ignore = [
