@@ -386,6 +386,28 @@ The **[🖥️ Live Demo](https://rdagent.azurewebsites.net/)** is implemented b
   the scheduler, and adjust `MONITOR_DASHBOARD_PORT` to change the published UI
   port.
 
+### 🧪 HS300 EOD smoke test
+
+Run the smoke harness to fetch synthetic HS300 data via the unified provider fallbacks, execute a single end-of-day monitoring cycle, and collect artifacts:
+
+```bash
+make e2e-smoke
+```
+
+The command writes logs, persisted signal rows, and a dashboard preview into `artifacts/e2e-smoke/`, which can be inspected or archived as part of CI diagnostics.
+
+Launch the Streamlit dashboard against the generated data with:
+
+```bash
+make ui
+```
+
+If the `streamlit` executable is not on your PATH, fall back to:
+
+```bash
+streamlit run rdagent_china/dashboard/a_share_monitor/app.py
+```
+
 ### 🖥️ Monitor the Application Results
 - You can run the following command for our demo program to see the run logs.
 
